@@ -25,27 +25,30 @@
 (setq delete-by-moving-to-trash t)
 
 (minibuffer-electric-default-mode 1)
-(setq history-delete-duplicates t)
 (minibuffer-depth-indicate-mode 1)
 (setq resize-mini-windows t
       enable-recursive-minibuffers t
       read-extended-command-predicate #'command-completion-default-include-p)
 
+(setq history-delete-duplicates t)
 (savehist-mode 1)
 
 (recentf-mode 1)
+
+(save-place-mode 1)
+
+(setq auto-revert-check-vc-info t)
 
 (delete-selection-mode 1)
 (setq mark-even-if-inactive nil)
 
 (setq-default fill-column 80)
+
 (setq-default truncate-lines t)
 
 (setq eldoc-documentation-strategy 'eldoc-documentation-compose-eagerly)
 
 (setq scroll-conservatively 1)
-
-(save-place-mode 1)
 
 (setq prettify-symbols-unprettify-at-point t)
 
@@ -60,21 +63,22 @@
 (setq project-mode-line t
       project-kill-buffers-display-buffer-list t)
 
-(setq custom-safe-themes t)
-
 (set-face-attribute 'default nil :family "Iosevka Fixed" :height 120)
 (set-face-attribute 'fixed-pitch nil :family "Iosevka Fixed" :height 1.0)
 (set-face-attribute 'variable-pitch nil :family "Charis" :height 1.05)
 
+(setq custom-safe-themes t)
+
 (require-theme 'modus-themes)
 (setq modus-themes-italic-constructs t
       modus-themes-bold-constructs t
+      modus-themes-mixed-fonts t
       modus-themes-prompts '(bold)
       modus-themes-completions '((matches . (bold))
                                  (selection . (bold italic)))
       modus-themes-to-toggle '(modus-operandi-tinted modus-vivendi-tinted))
-(keymap-set global-map "<f5> m" #'modus-themes-toggle)
-
+(keymap-set global-map "<f5>" #'modus-themes-toggle)
+(modus-themes-select 'modus-vivendi-tinted)
 
 (package-initialize)
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/"))
@@ -83,32 +87,12 @@
                                    ("melpa" . 69)))
 
 (require 'use-package)
-(setq use-package-hook-name-suffix nil
-      use-package-compute-statistics t)
-
-(use-package doric-themes
-  :ensure t
-  :config
-  (defun doric-themes-random-dark ()
-    "Load a random dark Doric theme."
-    (interactive)
-    (doric-themes-load-random 'dark))
-  (defun doric-themes-random-light ()
-    "Load a random light Doric theme."
-    (interactive)
-    (doric-themes-load-random 'light))
-  (keymap-set global-map "<f5> d" #'doric-themes-random-dark)
-  (keymap-set global-map "<f5> l" #'doric-themes-random-light)
-  (doric-themes-load-random 'dark))
-
-(use-package diminish
-  :ensure t
-  :config
-  (diminish 'eldoc-mode))
+(setq use-package-hook-name-suffix nil)
 
 (use-package which-key
   :init
   (which-key-mode 1)
+  :defer t
   :custom
   (which-key-idle-delay 0.5)
   (which-key-idle-secondary-delay 0.2)
@@ -118,10 +102,11 @@
 
 (use-package vertico
   :ensure t
+  :defer t
   :custom
   (vertico-resize t)
   (vertico-cycle t)
-  :config
+  :init
   (vertico-mode 1))
 
 (use-package vertico-directory
@@ -151,6 +136,7 @@
 
 (use-package marginalia
   :ensure t
+  :defer t
   :init
   (marginalia-mode 1)
   :config
@@ -240,6 +226,20 @@
       (keymap-set map "f" #'consult-fd)
       (keymap-set map "g" #'consult-ripgrep))))
 
+(use-package corfu
+  :ensure t
+  :custom
+  (corfu-cycle t)
+  (corfu-quit-at-boundary nil)
+  (corfu-quit-no-match nil)
+  (corfu-preselect 'prompt)
+  (corfu-on-exact-match 'insert)
+  :hook (prog-mode-hook eshell-mode-hook)
+  :init
+  (corfu-popupinfo-mode)
+  :config
+  (keymap-set corfu-map "SPC" #'corfu-insert-separator))
+
 (use-package helpful
   :ensure t
   :bind
@@ -264,9 +264,8 @@
   (TeX-source-correlate-start-server t)
   (TeX-engine 'luatex)
   (LaTeX-electric-left-right-brace t)
-  (TeX-electric-sub-and-superscript t)
-  (TeX-fold-auto t)
   (TeX-fold-preserve-comments t)
+  (TeX-fold-quotes-on-insert t)
   (TeX-electric-math (cons "\\(" "\\)"))
   (TeX-error-overview-open-after-TeX-run t)
   :config
@@ -275,15 +274,19 @@
     (add-hook 'TeX-after-compilation-finished-functions
               #'TeX-revert-document-buffer)
     (add-hook 'LaTeX-mode-hook (lambda ()
-                                 (add-hook 'after-save-hook
-                                           (lambda ()
-                                             (TeX-command-run-all nil))
-                                           nil t)
                                  (turn-on-auto-fill)
                                  (TeX-fold-mode 1)
                                  (add-hook 'find-file-hook #'TeX-fold-buffer nil t)
                                  (run-with-idle-timer 0 nil (lambda ()
-                                                              (prettify-symbols-mode 1))))))
+                                                              (prettify-symbols-mode 1)))
+                                 (define-minor-mode TeX-auto-compile-after-save-mode
+                                   "Minor mode for automatic (re)compilation and preview of (La)TeX documents."
+                                   :init-value nil
+                                   :lighter " AutoComp"
+                                   (if TeX-auto-compile-after-save-mode
+                                       (add-hook 'after-save-hook (lambda () (TeX-command-run-all nil)) nil t)
+                                     (remove-hook 'after-save-hook (lambda () (TeX-command-run-all nil)) t)))
+                                 (keymap-set TeX-mode-map "C-c a" #'TeX-auto-compile-after-save-mode))))
   (with-eval-after-load 'preview
     (setq preview-default-option-list (seq-difference preview-default-option-list
                                                       '("sections" "footnotes"))
@@ -299,8 +302,6 @@
   (keymap-set pdf-view-mode-map "c" #'pdf-view-center-in-window))
 
 (use-package flymake
-  :hook
-  (LaTeX-mode-hook)
   :custom
   (flymake-show-diagnostics-at-end-of-line 'short)
   :config
@@ -314,6 +315,7 @@
   :commands (magit-status magit-dispatch magit-file-dispatch)
   :custom
   (magit-define-global-key-bindings 'recommended)
+  (auto-revert-buffer-list-filter 'magit-auto-revert-repository-buffer-p)
   :config
   (add-to-list 'magit-no-confirm 'magit-delete-by-moving-to-trash))
 
